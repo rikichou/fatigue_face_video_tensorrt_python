@@ -38,22 +38,19 @@ class FatigueFaceVideoTensorrt():
         # create engine and context
         self.engine, self.context = tensorrt_init_model(model_path)
 
-    def __call__(self, face_video_path):
-        device = torch_device_from_trt(self.engine.get_location(1))
-
-        # get output tensor
+        # create ouput
+        self.device = torch_device_from_trt(self.engine.get_location(1))
         dtype = torch_dtype_from_trt(self.engine.get_binding_dtype(1))
         output_shape = tuple(self.context.get_binding_shape(1))
-        output = torch.empty(
-            size=output_shape, dtype=dtype, device=device, requires_grad=False)
+        self.output = torch.empty(
+            size=output_shape, dtype=dtype, device=self.device, requires_grad=False)
 
         # Get input tensor shape. For now, only support fixed input tensor
         input_shape = tuple(self.engine.get_binding_shape(0))
         input_dtype = torch_dtype_from_trt(self.engine.get_binding_dtype(0))
-        test_input = torch.empty(
-            size=input_shape, dtype=input_dtype, device=device, requires_grad=False)
         print("InputShape: {}, OutputShape: {}, dtype {}".format(input_shape, output_shape, input_dtype))
 
+    def __call__(self, face_video_path):
         # get input data
         test_pipeline = self.cfg.data.test.pipeline
         test_pipeline = Compose(test_pipeline)
@@ -66,7 +63,7 @@ class FatigueFaceVideoTensorrt():
         data = test_pipeline(data)
         data = collate([data], samples_per_gpu=1)
         # scatter to specified GPU
-        data = scatter(data, [device])[0]
+        data = scatter(data, [self.device])[0]
         data = data['imgs']
         print(data.dtype)
         data = data.half()
@@ -74,11 +71,11 @@ class FatigueFaceVideoTensorrt():
         # get predictions
         bindings = [
             data.contiguous().data_ptr(),
-            output.contiguous().data_ptr()
+            self.output.contiguous().data_ptr()
         ]
         #st = time.time()
         self.context.execute_async_v2(bindings,
                                  torch.cuda.current_stream().cuda_stream)
         #print("Time Cost {}".format(time.time() - st))
-        results = output.cpu().numpy()
+        results = self.output.cpu().numpy()
         return results

@@ -50,22 +50,23 @@ class FatigueFaceVideoTensorrt():
         input_dtype = torch_dtype_from_trt(self.engine.get_binding_dtype(0))
         print("InputShape: {}, OutputShape: {}, dtype {}".format(input_shape, output_shape, input_dtype))
 
+        # pipeline
+        test_pipeline = self.cfg.data.test.pipeline
+        self.test_pipeline = Compose(test_pipeline)
+
     def __call__(self, face_video_path):
         # get input data
-        test_pipeline = self.cfg.data.test.pipeline
-        test_pipeline = Compose(test_pipeline)
         start_index = self.cfg.data.test.get('start_index', 0)
         data = dict(
             filename=face_video_path,
             label=-1,
             start_index=start_index,
             modality='RGB')
-        data = test_pipeline(data)
+        data = self.test_pipeline(data)
         data = collate([data], samples_per_gpu=1)
         # scatter to specified GPU
         data = scatter(data, [self.device])[0]
         data = data['imgs']
-        print(data.dtype)
         data = data.half()
 
         # get predictions

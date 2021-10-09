@@ -1,7 +1,3 @@
-_base_ = [
-    '../../_base_/models/ircsn_r152.py', '../../_base_/default_runtime.py'
-]
-
 checkpoint_config = dict(interval=1)
 log_config = dict(
     interval=20,
